@@ -6,4 +6,6 @@
 
 ![](images/vcn-tps.png)
 
-![](images/vcn-tps.png)
+![](images/vcn-response.png)
+
+![](images/cache-load.png)

@@ -12,7 +12,7 @@
 
 - [C#](code/ConnTest.cs)
 
-- [R](code/ttloadperf.R)
+- [R](code/collect.R)
 
 ## Topics
 
@@ -21,3 +21,5 @@
 - [Distributed Systems](distributed.md)
 
 - [Stress & Load Testing](stress.md)
+
+- [AI](ai.md)

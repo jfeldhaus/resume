@@ -4,8 +4,14 @@
 
 ![](images/nodes-2.png)
 
-![](images/global-txn.png)
-
 ![](images/heatmap.png)
 
+![](images/global-txn.png)
+
 ![](images/global-idx.png)
+
+![](images/grid-queries.gif)
+
+![](images/grid-log-holds.png)
+
+![](images/grid-tps.png)

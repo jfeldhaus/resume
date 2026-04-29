@@ -1,4 +1,14 @@
-# Resume
+# Jason Feldhaus
+
+## Topics
+
+- [Performance](performance.md)
+
+- [Distributed Systems](distributed.md)
+
+- [Stress & Load Testing](stress.md)
+
+- [AI](ai.md)
 
 ## Code Examples
 
@@ -13,13 +23,3 @@
 - [C#](code/ConnTest.cs)
 
 - [R](code/collect.R)
-
-## Topics
-
-- [Performance](performance.md)
-
-- [Distributed Systems](distributed.md)
-
-- [Stress & Load Testing](stress.md)
-
-- [AI](ai.md)

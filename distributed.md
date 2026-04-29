@@ -13,5 +13,3 @@
 ![](images/grid-queries.gif)
 
 ![](images/grid-log-holds.png)
-
-![](images/grid-tps.png)

@@ -123,7 +123,7 @@ collectTestRun <- function (stf.conn, test.run,
 
     tryCatch ({
 
-      # Acquire the target TimesTen connection required by the collection
+      # Acquire the target connection required by the collection
       # procedures.
       tt.conn <- getTTCConn (test.run$DEPLOYMENT_NAME,
                              test.run$DB_USER,
@@ -167,7 +167,7 @@ collectTestRun <- function (stf.conn, test.run,
 
     
     
-    # Configure TimesTen database statistics
+    # Configure database statistics
     configureTTStatsCollect (stf.props, tt.conn)
     
 
@@ -448,8 +448,8 @@ collectTestRun <- function (stf.conn, test.run,
 
 
 
-    # close the target TimesTen connection
-    loginfo ("[%s] Closing target TimesTen connection for TEST_RUN_ID = %s",
+    # close the target connection
+    loginfo ("[%s] Closing target connection for TEST_RUN_ID = %s",
              "collectTestRun", test.run$TEST_RUN_ID)
 
     try (dbRollback (tt.conn), silent = TRUE)
@@ -458,7 +458,7 @@ collectTestRun <- function (stf.conn, test.run,
 
   },
 
-  # catch the error when the target TimesTen connection fails to be acquired
+  # catch the error when the target connection fails to be acquired
   error = function (e) {
 
     rc <<- FALSE
@@ -470,7 +470,7 @@ collectTestRun <- function (stf.conn, test.run,
 
 
   # Collect log files from the instance file systems. These collection
-  # procedures do not require a TimesTen connection to the target system.
+  # procedures do not require a connection to the target system.
   if (collect.logs) {
 
     collect.count <- collect.count + 1
@@ -850,10 +850,7 @@ collectConfigs <- function (stf.conn, test.run, tt.conn) {
            "collectConfigs", test.run$TEST_RUN_ID)
 
 
-  # Retrieve the current local database configuration. Note that
-  # TATP.TTSCALEOUTCONFIGGETINTERNAL may not exist in early 18.1 releases. So
-  # if this fails then try again without this procededure.
-
+  # Retrieve the current local database configuration.
 
   tryCatch ({
 
@@ -866,7 +863,7 @@ collectConfigs <- function (stf.conn, test.run, tt.conn) {
           'ttConfiguration' AS SOURCE,
           PARAMNAME AS PARAM,
           PARAMVALUE AS VALUE
-        FROM ttConfigurationInternal
+        FROM ttConfiguration
 
         UNION
 
@@ -874,7 +871,7 @@ collectConfigs <- function (stf.conn, test.run, tt.conn) {
           'ttDBConfig' AS SOURCE,
           PARAM AS PARAM,
           VALUE AS VALUE
-        FROM ttDBConfigGetInternal
+        FROM ttDBConfigGet
 
         UNION
 
@@ -882,7 +879,7 @@ collectConfigs <- function (stf.conn, test.run, tt.conn) {
           'ttScaleoutConfig' AS SOURCE,
           PARAM AS PARAM,
           VALUE AS VALUE
-        FROM ttScaleoutConfigGetInternal
+        FROM ttScaleoutConfigGet
 
         UNION
 
@@ -901,9 +898,9 @@ collectConfigs <- function (stf.conn, test.run, tt.conn) {
   error = function (e) {
     logerror ("[%s] %s ", "collectConfigs", e [[1]])
     logwarn ("[%s] %s ", "collectConfigs",
-             "Executing again without ttScaleoutConfigGetInternal() ...")
+             "Executing again without ttScaleoutConfigGet() ...")
 
-    # try again without TTSCALEOUTCONFIGGETINTERNAL
+    # try again without TTSCALEOUTCONFIGGET
     configs <<- dbGetQuery (tt.conn,
       "
       SELECT
@@ -913,7 +910,7 @@ collectConfigs <- function (stf.conn, test.run, tt.conn) {
           'ttConfiguration' AS SOURCE,
           PARAMNAME AS PARAM,
           PARAMVALUE AS VALUE
-        FROM ttConfigurationInternal
+        FROM ttConfiguration
 
         UNION
 
@@ -921,7 +918,7 @@ collectConfigs <- function (stf.conn, test.run, tt.conn) {
           'ttDBConfig' AS SOURCE,
           PARAM AS PARAM,
           VALUE AS VALUE
-        FROM ttDBConfigGetInternal
+        FROM ttDBConfigGet
 
         UNION
 
@@ -1000,7 +997,7 @@ collectConns <- function (stf.conn, test.run, tt.conn) {
   # retrieve connection info
   db.conns <- dbGetQuery (tt.conn,
     "
-    SELECT /*+ TT_PartialResult (1) */
+    SELECT 
 
       ELEMENTID,
       PID,
@@ -1102,7 +1099,7 @@ collectDBMetrics <- function (stf.conn, test.run, tt.conn) {
 
   query <-
     "
-    SELECT /*+ TT_PartialResult (1) */
+    SELECT 
 
       ELEMENTID,
 
@@ -1179,15 +1176,15 @@ collectDBMetrics <- function (stf.conn, test.run, tt.conn) {
       'cg.autorefresh.inserts.rows',
       'cg.autorefresh.updates.rows',
       
-      'zzinternal.db.index.range.btree.split',
-      'zzinternal.db.index.range.btree.merge',
-      'zzinternal.db.index.range.btree.balance',
-      'zzinternal.db.index.range.btree.restart',
-      'zzinternal.db.index.range.btree.right_most_insert',
-      'zzinternal.db.index.range.btree.lock_wait',
-      'zzinternal.db.index.range.btree.node_allocated',
-      'zzinternal.db.index.range.btree.node_allocated_freelist',
-      'zzinternal.db.index.range.btree.node_unlinked',
+      'zz.db.index.range.btree.split',
+      'zz.db.index.range.btree.merge',
+      'zz.db.index.range.btree.balance',
+      'zz.db.index.range.btree.restart',
+      'zz.db.index.range.btree.right_most_insert',
+      'zz.db.index.range.btree.lock_wait',
+      'zz.db.index.range.btree.node_allocated',
+      'zz.db.index.range.btree.node_allocated_freelist',
+      'zz.db.index.range.btree.node_unlinked',
       
       'db.index.range.deletes',
       'db.index.range.inserts.count',
@@ -1202,31 +1199,31 @@ collectDBMetrics <- function (stf.conn, test.run, tt.conn) {
       'db.index.temporary.rows_fetched.count',
       'db.index.temporary.rows_fetched.repl',
             
-      'zzinternal.db.index.range.gc.freed',
-      'zzinternal.db.index.range.gc.signalled',
+      'zz.db.index.range.gc.freed',
+      'zz.db.index.range.gc.signalled',
 
-      'zzinternal.stmt.executes.updates.inplace',
-      'zzinternal.stmt.executes.updates.versioned',
-      'zzinternal.stmt.executes.updates.versioned.disabled_ipu',
-      'zzinternal.stmt.executes.updates.versioned.multi_partitions',
-      'zzinternal.stmt.executes.updates.versioned.index',
+      'zz.stmt.executes.updates.inplace',
+      'zz.stmt.executes.updates.versioned',
+      'zz.stmt.executes.updates.versioned.disabled_ipu',
+      'zz.stmt.executes.updates.versioned.multi_partitions',
+      'zz.stmt.executes.updates.versioned.index',
       
       'defrag.fragmented.pages',
       'defrag.rows.moved',
       
-      'zzinternal.log.strand_switches.strand_full',
-      'zzinternal.log.flusher_deadlock_retry',
-      'zzinternal.log.failed.waiting.lwn.published',
-      'zzinternal.log.system.new.lwn',
-      'zzinternal.log.system.new.lwn.missed',
-      'zzinternal.log.insert.new.lwn',
-      'zzinternal.log.insert.new.lwn.missed',
+      'zz.log.strand_switches.strand_full',
+      'zz.log.flusher_deadlock_retry',
+      'zz.log.failed.waiting.lwn.published',
+      'zz.log.system.new.lwn',
+      'zz.log.system.new.lwn.missed',
+      'zz.log.insert.new.lwn',
+      'zz.log.insert.new.lwn.missed',
       
       'txn.autonomous.begin',
       'txn.autonomous.end',
       'txn.autonomous.active',
       'txn.autonomous.uncaught_exceptions',
-      'txn.autonomous.internal_errors',
+      'txn.autonomous.errors',
       'txn.autonomous.max_depth',
       
       'db.tempblk.alloc',
@@ -1241,7 +1238,7 @@ collectDBMetrics <- function (stf.conn, test.run, tt.conn) {
   # last collection time
   if (!is.na (last.collect.date$COLLECTED_AT)) {
 
-    # TimesTen DATE format: YYYY-MM-DD HH:MI:SS
+    # DATE format: YYYY-MM-DD HH:MI:SS
     query <- paste0 (query, "\n AND COLLECTED_AT > ",
                      getPOSIXctAsSQL (last.collect.date$COLLECTED_AT))
   }
@@ -1301,7 +1298,7 @@ collectCpuMetrics <- function (stf.conn, test.run, tt.conn) {
 
   query <-
     "
-    SELECT /*+ TT_PartialResult (1) */
+    SELECT 
 
       ELEMENTID,
       ID AS COLLECT_ID,
@@ -1315,7 +1312,7 @@ collectCpuMetrics <- function (stf.conn, test.run, tt.conn) {
   # last collection time
   if (!is.na (last.collect.date$COLLECTED_AT)) {
 
-    # TimesTen DATE format: YYYY-MM-DD HH:MI:SS
+    # DATE format: YYYY-MM-DD HH:MI:SS
     query <- paste0 (query, "\n WHERE COLLECTED_AT > ",
                      getPOSIXctAsSQL (last.collect.date$COLLECTED_AT))
   }
@@ -1373,7 +1370,7 @@ collectMemMetrics <- function (stf.conn, test.run, tt.conn) {
 
   query <-
     "
-    SELECT /*+ TT_PartialResult (1) */
+    SELECT 
 
       ELEMENTID,
       ID AS COLLECT_ID,
@@ -1387,7 +1384,7 @@ collectMemMetrics <- function (stf.conn, test.run, tt.conn) {
   # last collection time
   if (!is.na (last.collect.date$COLLECTED_AT)) {
 
-    # TimesTen DATE format: YYYY-MM-DD HH:MI:SS
+    # DATE format: YYYY-MM-DD HH:MI:SS
     query <- paste0 (query, "\n WHERE COLLECTED_AT > ",
                      getPOSIXctAsSQL (last.collect.date$COLLECTED_AT))
   }
@@ -1446,7 +1443,7 @@ collectGenericMetrics <- function (stf.conn, test.run, tt.conn) {
 
   query <-
     "
-    SELECT /*+ TT_PartialResult (1) */
+    SELECT 
 
       ELEMENTID,
       ID AS COLLECT_ID,
@@ -1463,7 +1460,7 @@ collectGenericMetrics <- function (stf.conn, test.run, tt.conn) {
   # last collection time
   if (!is.na (last.collect.date$COLLECTED_AT)) {
 
-    # TimesTen DATE format: YYYY-MM-DD HH:MI:SS
+    # DATE format: YYYY-MM-DD HH:MI:SS
     query <- paste0 (query, "\n AND COLLECTED_AT > ",
                      getPOSIXctAsSQL (last.collect.date$COLLECTED_AT))
   }
@@ -1587,7 +1584,7 @@ collectLogHolds <- function (stf.conn, test.run, tt.conn) {
       FROM GV$BOOKMARK
     )
 
-    SELECT /*+ TT_PartialResult (1) */
+    SELECT 
 
       ELEMENTID AS ELEMENTID,
       COLLECT_ID AS COLLECT_ID,
@@ -1610,7 +1607,7 @@ collectLogHolds <- function (stf.conn, test.run, tt.conn) {
   # last collection time
   if (!is.na (last.collect.date$COLLECTED_AT)) {
 
-    # TimesTen DATE format: YYYY-MM-DD HH:MI:SS
+    # DATE format: YYYY-MM-DD HH:MI:SS
     query <- sprintf (query, paste0 ("WHERE COLLECTED_AT > ",
                       getPOSIXctAsSQL (last.collect.date$COLLECTED_AT)))
   } else {
@@ -1679,7 +1676,7 @@ collectDiskHist <- function (stf.conn, test.run, tt.conn) {
 
   query <-
     "
-    SELECT /*+ TT_PartialResult (1) */
+    SELECT 
 
       ELEMENTID,
       ID AS COLLECT_ID,
@@ -1694,7 +1691,7 @@ collectDiskHist <- function (stf.conn, test.run, tt.conn) {
   # last collection time
   if (!is.na (last.collect.date$COLLECTED_AT)) {
 
-    # TimesTen DATE format: YYYY-MM-DD HH:MI:SS
+    # DATE format: YYYY-MM-DD HH:MI:SS
     query <- paste0 (query, "\n WHERE COLLECTED_AT > ",
                      getPOSIXctAsSQL (last.collect.date$COLLECTED_AT))
   }

@@ -35,21 +35,16 @@ namespace TTAdoTest
       Console.WriteLine("ConnectionTimeout = " + conn.ConnectionTimeout);
       Console.WriteLine("ConnectionType = " + conn.ConnectionType);
       Console.WriteLine("Database = " + conn.Database);
-#if !WINPROD_TIMESTEN111_NT
       Console.WriteLine("DatabaseDomainName = " + conn.DatabaseDomainName);
       Console.WriteLine("DatabaseName = " + conn.DatabaseName);
-#endif
       Console.WriteLine("DataSource= " + conn.DataSource);
-#if !WINPROD_TIMESTEN111_NT
       Console.WriteLine("HostName = " + conn.HostName);
       Console.WriteLine("InstanceName = " + conn.InstanceName);
       Console.WriteLine("ServiceName = " + conn.ServiceName);
-#endif      
       Console.WriteLine("ServerVersion = " + conn.ServerVersion);
-      Console.WriteLine("State = " + conn.State);
-#if !WINPROD_TIMESTEN111_NT      
+      Console.WriteLine("State = " + conn.State);    
       Console.WriteLine("StatementCacheSize = " + conn.StatementCacheSize);
-#endif
+
 
       // write only properties
       conn.ActionName = "nunit";
@@ -63,7 +58,7 @@ namespace TTAdoTest
     [Test]
     public void TestOSUser()
     {
-      // this test is valid only for TimesTen
+
       if (Conn.ConnectionType != OracleConnectionType.TimesTen)
         return;
 
@@ -97,7 +92,6 @@ namespace TTAdoTest
       conn2.ConnectionString = ConnStr;
       conn2.Open();
 
-      // this failed due to bug #9586071
       trans = conn2.BeginTransaction(System.Data.IsolationLevel.Serializable);
 
       try
@@ -119,7 +113,6 @@ namespace TTAdoTest
       cmd.ExecuteNonQuery();
 
 
-      // this test valid only for TimesTen
       cmd2.CommandText = "SELECT COUNT (*) FROM TXN_MGM";
 
       if (Conn.ConnectionType == OracleConnectionType.TimesTen)
@@ -131,7 +124,6 @@ namespace TTAdoTest
       trans.Commit();
 
       // explicitly initialize a serializable transaction
-      // this used to fail due to BugDb #9167888
       trans = Conn.BeginTransaction(System.Data.IsolationLevel.Serializable);
 
       cmd.CommandText = "DELETE FROM TXN_MGM";
@@ -150,18 +142,13 @@ namespace TTAdoTest
       Assert.AreEqual("0", cmd2.ExecuteScalar().ToString());
 
       // verify transaction timeouts and automatic rollbacks
-
-      // Using serializable isolation here results in 'ORA-57000: Operation invalid at this time'.
-      // This needs to be investigated. This might be due to the way TimesTen handles result
-      // sets on transaction boundaries.
-      // trans2 = conn2.BeginTransaction(System.Data.IsolationLevel.Serializable);
       trans2 = conn2.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
       trans = Conn.BeginTransaction(System.Data.IsolationLevel.Serializable);
 
       cmd2.CommandText = "INSERT INTO TXN_MGM VALUES (1)";
       cmd2.ExecuteNonQuery();
 
-      // this should time out (Oracle connections timeout forever)
+      // this should time out 
       if (Conn.ConnectionType == OracleConnectionType.TimesTen)
       {
         try
@@ -201,10 +188,7 @@ namespace TTAdoTest
 
 
     // This test case attempts to enlist two connections within a distributed
-    // transaction. However, both Oracle and TimesTen connections fail in the
-    // same way due to a 'Promote method returned an invalid value' exception.
-    // This is probably caused by an incorrect setup for Oracle's extension
-    // of Microsoft's distributed transaction manager.
+    // transaction.
 
     [Test]
     public void TestDistributedTxn()
@@ -277,20 +261,12 @@ namespace TTAdoTest
 
 
 
-    // This test currently fails against TimesTen due to BugDb #9148093 & #9148383.
     [Test]
     public void TestConnPoolRecovery()
     {
       OracleCommand cmd = Conn.CreateCommand();
       bool validateConnection = true;
 
-
-      /* this test is only valid for TimesTen */
-      if (Conn.ConnectionType != OracleConnectionType.TimesTen)
-      {
-        Console.WriteLine("Skipping TimesTen specific test case.");
-        return;
-      }
 
       // is the ValidateConnection attribute set to true?
       String connStr = Conn.ConnectionString.ToUpper();
@@ -306,7 +282,7 @@ namespace TTAdoTest
       }
 
 
-      // invalidate the TimesTen connection
+      // invalidate the connection
       try
       {
         cmd.CommandText = "CALL Invalidate ()";
@@ -364,8 +340,7 @@ namespace TTAdoTest
 
 
     // This is a multi-threaded connect/disconnect test without a connection 
-    // pool that is based on bugs #9927106 & #9764563.
-
+    // pool 
     private class ConnThread 
     {
       public int numIterationsPerThread = 1;
@@ -448,7 +423,7 @@ namespace TTAdoTest
     }
 
 
-    // this tests the use of both Oracle and TimesTen connection types
+    // this tests the use of both connection types
     // in the same thread
     [Test]
     public void TestMixedConnTypes()
@@ -507,7 +482,7 @@ namespace TTAdoTest
       rowIndex = 0;
       foreach (DataRow custRow in custTable.Rows)
       {
-        custRow["COMPANY_NAME"] = "TimesTen #" + rowIndex;
+        custRow["COMPANY_NAME"] = "#" + rowIndex;
         rowIndex++;
 
         if (rowIndex == batchSize)
@@ -526,7 +501,7 @@ namespace TTAdoTest
           continue;
         }
 
-        custRow["COMPANY_NAME"] = "Oracle #" + rowIndex;
+        custRow["COMPANY_NAME"] = "#" + rowIndex;
         rowIndex++;
       }
 
@@ -647,7 +622,7 @@ namespace TTAdoTest
         Console.WriteLine("Opening connection #" + index + "...");
         conns[index].Open();
 
-        // make sure the TimesTen connection flag is maintained in the pool
+        // make sure the connection flag is maintained in the pool
         Assert.True(connType == conns[index].ConnectionType);
       }
 
@@ -677,14 +652,9 @@ namespace TTAdoTest
     public void TestConnOpenError()
     {
 
-      // In OpsCon.c::OpsConOpen() there is special code required to
-      // propagate TimesTen OCI error messages to the OPO layer. This
-      // test case executes this code by generation an authentication
-      // failure.
-
       // Create a conn. string with a bogus user.
       String connStr = "Data Source=" + Conn.DataSource + 
-        ";User ID=nobody;Password=nobody";
+        ";User ID=nobody";
 
       // Try to connect.
       try

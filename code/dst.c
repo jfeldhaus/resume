@@ -12,9 +12,8 @@
   2. Statement Management Functions
   3. Result Set and Data Transfer Functions
   4. Metadata Functions
-  5. Oracle Metadata Functions
-  6. TEST_DATA Data Source Management Functions
-  7. Utility Functions
+  5. TEST_DATA Data Source Management Functions
+  6. Utility Functions
 
 */
 
@@ -195,7 +194,7 @@ static HDBC ghdbcTD = SQL_NULL_HDBC;
 * using the specified ODBC connection string. If the connection is successful 
 * then TRUE is returned, otherwise, FALSE is returned.
 *
-* If the connection string uses Oracle syntax instead of ODBC syntax then 
+* If the connection string uses RDBMS syntax instead of ODBC syntax then 
 * Pro*C is used to connect to the target (if the executable is linked to the
 * Pro*C libraries).
 *
@@ -817,7 +816,7 @@ BOOL DSTFreeConn (HENV henv, HDBC hdbc)
 * Function: DSTIsOraConnStr ()
 *
 * Description: Returns TRUE if the connection string uses
-* Oracle connection syntax.
+* RDBMS connection syntax.
 *
 * In: pszConnStrIn
 *
@@ -836,7 +835,7 @@ BOOL DSTIsOraConnStr (const char *pszConnStrIn)
   STRToUpper (connStrTest);
 
   /* if the string does not have the DSN and/or Driver */
-  /* connection attributes then assume it is an Oracle connection */
+  /* connection attributes then assume it is an RDBMS connection */
   if (!STRHasSequence (connStrTest, "DSN=", NULL) &&
     !STRHasSequence (connStrTest, "DRIVER=", NULL))
   {
@@ -1570,29 +1569,6 @@ SQLRETURN DSTExecuteAsPLSQL (HDBC hdbc, const char *pszSql)
 }
 
 
-#ifdef DST_INCLUDE_COREXEL
-
-/*
-* Function: DSTExecAsync ()
-*
-* Description: Entry function for a separate thread to
-* execute an arbitrary SQL statement.
-*
-* In: pExecInfo
-*
-* Out:
-*
-* In/Out:
-*
-*/
-TtThreadStart DSTExecAsync (DSTSQLTHREAD* pExecInfo)
-{
-  pExecInfo->rc = DSTExecute (pExecInfo->hdbc, pExecInfo->pszSql);
-  return TtThreadDone;
-}
-
-#endif
-
 
 /*
 * Function: DSTExecRetryCount ()
@@ -1812,7 +1788,7 @@ SQLRETURN DSTExecDirectStmtRetryTransient (HSTMT hstmt, const char *pszSql,
 /*
 * Function: DSTExecLoadFromOracle ()
 *
-* Description: As of TimesTen 12.1 the ttLoadFromOracle() built-in procedure 
+* Description: As of 12.1 the ttLoadFromOracle() built-in procedure 
 * does not return an ODBC error status and error codes in the same way as other
 * statements. This error information is conveyed via a result set rather than
 * the ODBC return code and error stack. By calling this procedure with a 
@@ -1880,7 +1856,7 @@ SQLRETURN DSTExecLoadFromOracle (HDBC hdbc, const char *pszSql,
           Rows_Loaded	     TT_BIGINT	Number of rows loaded
           Errors           TT_INT     Number of errors encountered  
 
-          Error_Code       TT_INTEGER TimesTen Error Code 
+          Error_Code       TT_INTEGER Error Code 
              0  : Load successfully completed 
             -1  : Load successfully completed with errors
             -2  : Load terminated early with errors
@@ -1890,7 +1866,7 @@ SQLRETURN DSTExecLoadFromOracle (HDBC hdbc, const char *pszSql,
         */
 
 
-        /* earlier versions of TimesTen (before 12.x) returned only 1 column */
+        /* earlier versions (before 12.x) returned only 1 column */
         if (iResultColCount == 1)
         {
           if (pLoadInfo != NULL)
@@ -2001,16 +1977,8 @@ SQLRETURN DSTExecLoadFromOracle (HDBC hdbc, const char *pszSql,
               /* get the SCN */
               if (STREqualsCString (key, "ORACLESCN"))
               {
-#ifdef SB_P_OS_NT
-                sscanf (STRC (value), "%I64u", 
-                  &(pLoadInfo->iOracleSCN));
-#elif TT64
-                sscanf (STRC (value), "%lu", 
-                  &(pLoadInfo->iOracleSCN));
-#else
                 sscanf (STRC (value), "%llu", 
                   &(pLoadInfo->iOracleSCN));
-#endif
               }
 
               /* get the number of rows ignored */
@@ -3981,8 +3949,6 @@ SQLRETURN DSTSetParamAsString (const HSTMT hstmt,
     DST_LOG_QUIET_ME ("DSTSetParamAsString");
 
 
-    /* the SQL type used here was changed from SQL_CHAR */
-    /* to SQL_VARCHAR to avoid BugDb #7167389 */
     rc = SQLBindParameter (hstmt, iParam,
       SQL_PARAM_INPUT_OUTPUT, SQL_C_CHAR,
       SQL_VARCHAR , (SQLULEN) strlen (pszValue), 0,
@@ -4693,8 +4659,6 @@ BOOL DSTGetRandomObject (const HDBC hdbc, const char* pszObjTypeList,
     "AND OBJECTS.NAME NOT LIKE 'MGT%$%' \n"
     "AND OBJECTS.NAME NOT LIKE 'CD$%' \n" /* exclude compressed column tables */
 
-    /* This is a temporary fix to avoid bug #27195304 which results in a hang */
-    /* in grid mode when operating on global temp. tables. */
     "AND RTRIM (OBJECTS.OWNER) = USER \n"
     "AND TYPE != 'TABLE_GLOBAL_TEMPORARY' \n"
     
@@ -5258,7 +5222,7 @@ BOOL DSTGetDriverName (const HDBC hdbc, DSTRING* pDriverName)
 * Function: DSTIsClientDriver ()
 *
 * Description: Returns TRUE if the connection handle is associated with
-* the TimesTen client driver.
+* the client driver.
 *
 * In:  hdbc
 *
@@ -5353,7 +5317,7 @@ BOOL DSTGetDriverVersion (const HDBC hdbc, DSTRING* pDriverVersion)
 * Function: DSTGetConfigValue ()
 *
 * Description: Returns the value of the specified key via a call to the 
-* TimesTen built-in ttConfiguration() procedure. If the key is not found or if 
+* built-in ttConfiguration() procedure. If the key is not found or if 
 * a failure occurs then FALSE is returned. The output parameter is specified as 
 * a string and/or integer. Either output parameter can be null.
 *
@@ -5378,9 +5342,8 @@ BOOL DSTGetConfigValue (HDBC hdbc, char* pszKey,
   STRInit (&value, DST_NULL_STRING);
 
 
-  /* for Oracle (PassThrough=3) connections we need to */
-  /* switch to TimesTen execution */
-  DST_CONN_STATE_TIMESTEN (hdbc);
+ 
+  DST_CONN_STATE (hdbc);
 
   if (DSTIsSuccess (DSTAllocStmt (hdbc, &hstmt)))
   {
@@ -5417,7 +5380,7 @@ BOOL DSTGetConfigValue (HDBC hdbc, char* pszKey,
 * Function: DSTGetDbConfigValue ()
 *
 * Description: Returns the value of the specified key via a call to the 
-* TimesTen built-in ttDbConfig() procedure. If the key is not found or if 
+* built-in ttDbConfig() procedure. If the key is not found or if 
 * a failure occurs then FALSE is returned. The output parameter is specified as 
 * a string and/or integer. Either output parameter can be null.
 *
@@ -5442,9 +5405,7 @@ BOOL DSTGetDbConfigValue (HDBC hdbc, char* pszKey,
   STRInit (&value, DST_NULL_STRING);
 
 
-  /* for Oracle (PassThrough=3) connections we need to */
-  /* switch to TimesTen execution */
-  DST_CONN_STATE_TIMESTEN (hdbc);
+  DST_CONN_STATE (hdbc);
 
   if (DSTIsSuccess (DSTAllocStmt (hdbc, &hstmt)))
   {
@@ -5482,9 +5443,9 @@ BOOL DSTGetDbConfigValue (HDBC hdbc, char* pszKey,
 /*
 * Function: DSTSetTTTypeMode ()
 *
-* Description: Sets the TimesTen SQL data type type
+* Description: Sets the SQL data type type
 * mode for ODBC functions that return SQL data type
-* constants. If TRUE is specified then TimesTen type
+* constants. If TRUE is specified then the type
 * constants are returned. If FALSE is specified then
 * generic ODBC type constants are returned.
 *
@@ -5833,8 +5794,6 @@ BOOL DSTIsPrimaryKeyColumn (const HDBC hdbc,
   STRInit (&tableName, pszTableName);
 
 
-  /* if this is a synonym then SQLPrimaryKeys will not recognize */
-  /* it - see Bug #8993610 - so resolve the synonym here */
   if (DSTIsSynonym (hdbc, pszTableOwner, pszTableName))
   {
     if (!DSTResolveSynonym (hdbc, pszTableOwner, pszTableName,
@@ -6270,8 +6229,6 @@ BOOL DSTIsChildTable (const HDBC hdbc,
   STRInit (&tableName, pszTableName);
 
 
-  /* if this is a synonym then SQLForeignKeys() will not recognize */
-  /* it - see Bug #8993610 - so resolve the synonym here */
   if (DSTIsSynonym (hdbc, pszTableOwner, pszTableName))
   {
     if (!DSTResolveSynonym (hdbc, pszTableOwner, pszTableName,
@@ -6483,8 +6440,7 @@ BOOL DSTIsSynonym (const HDBC hdbc,
 /*
 * Function: DSTIsUser ()
 *
-* Description: Returns TRUE if the specified UID is known
-* to TimesTen.
+* Description: Returns TRUE if the specified UID is known.
 *
 * In: hdbc, pszUid
 *
@@ -6521,7 +6477,7 @@ BOOL DSTIsUser (const HDBC hdbc, const char* pszUid)
 * Function: DSTIsSystemUser ()
 *
 * Description: Returns TRUE if the specified UID is a system
-* defined TimesTen user. These users include SYS, SYSTEM,
+* defined user. These users include SYS, SYSTEM,
 * TTREP, PUBLIC and the instance administration user.
 *
 * In: hdbc, pszUid
@@ -6800,7 +6756,7 @@ BOOL DSTGetTableNameFromSysId (const HDBC hdbc, const SQLUBIGINT iSysId,
 * Function: DSTIsOraConn ()
 *
 * Description: This function returns TRUE if the connection associated with the 
-* hdbc is successfully operating against the Oracle RDBMS. Note that a TimesTen 
+* hdbc is successfully operating against the Oracle RDBMS. Note that a  
 * connection may be configured (Passthrough=3) to operate against the Oracle
 * RDBMS but may not have access due to service loss, incorrect credentials, etc.
 *
@@ -7547,9 +7503,8 @@ SQLINTEGER DSTGetAutoCommit (HDBC hdbc)
 /*
 * Function: DSTGetPassThrough ()
 *
-* Description: Returns the current Oracle Connect
-* passthrough level. The passthrough level can be 0,
-* 1, 2, or 3.
+* Description: Returns the current passthrough level. 
+* The passthrough level can be 0, 1, 2, or 3.
 *
 * In: hdbc
 *
@@ -7565,7 +7520,7 @@ SWORD DSTGetPassThrough (HDBC hdbc)
 
   if (DSTIsProCConn (hdbc))
   {
-    /* The TimesTen Pro*C implementation cannot process built-in */
+    /* The Pro*C implementation cannot process built-in */
     /* procedures that return result sets. This is a workaround. */
     if (DSTIsOraConn (hdbc))
       return 3;
@@ -8014,7 +7969,7 @@ SQLINTEGER DSTGetIsolation (HDBC hdbc)
   DST_LOG_QUIET_ME ("DSTGetIsolation");
 
   /* there is no current way to get or set the isolation */
-  /* level via TimesTen Pro C - return SQL_TXN_READ_COMMITTED */
+  /* level via Pro C - return SQL_TXN_READ_COMMITTED */
   if (DSTIsProCConn (hdbc))
   {
     DST_LOG_UNREPORT_ME;
@@ -8697,7 +8652,7 @@ void DSTSetConnStrAttr (DSTRING* pConnStr, const char* pszAttr,
 /*
 * Function: DSTConfigConnStrAsUser  ()
 *
-* Description: This function reconfigures a TimesTen
+* Description: This function reconfigures a 
 * connection string so that it will connect as the given
 * UID/PWD. If pszUid and/or pszPwd are NULL then the
 * UID and/or PWD attributes are set to an empty string.
@@ -8744,7 +8699,7 @@ void DSTConfigConnStrAsUser (DSTRING* pConnStr,
     STRCopy (pConnStr, oraConnStr);
     STRFree (&oraConnStr);
   }
-  /* TimesTen ODBC conn. str. */
+  /* ODBC conn. str. */
   else
   {
 
@@ -8906,13 +8861,8 @@ void DSTSleep (float fSeconds)
   DST_LOG (STRC (message));
 
 
-#ifdef SB_P_OS_NT
-      /* milliseconds */
-      Sleep ((DWORD) (fSeconds * 1000));
-#else
-      /* microseconds */
-      usleep (fSeconds * 1000000);
-#endif
+  /* microseconds */
+  usleep (fSeconds * 1000000);
 
   /* post the ttIsql sleep command */
   STRCopyCString (&message, TTISQL_SLEEP " %e");
@@ -9844,56 +9794,15 @@ BOOL DSTSpawnProcess (const char* pszShellCommand,
   /* if the last character in the shell command is '&' then get rid of it */
   STRTrim (&shellCommand, STR_WHITESPACE_CHARS "&");
 
-#ifndef SB_P_OS_NT
-
-  if (!bWaitForReturn)
-  {
-    /* add the " &" to the end of the shell command in order for the process */
-    /* to execute asynchronously */
-    STRAppendCString (&shellCommand, " &");
-  }
-
-#endif
-
-
-
   STRCopyCString (&message, "Spawning process: %s");
   STRInsertString (&message, shellCommand);
   DST_LOG (STRC (message));
 
 
 
-  /* execute the process on Windows */
-#ifdef SB_P_OS_NT
-
-  if (bWaitForReturn)
-  {
-    iReturnStatus = system (STRC (shellCommand));
-  }
-  else
-  {
-    static STARTUPINFO sInfo =
-      {sizeof (STARTUPINFO), NULL, NULL, NULL,
-      0, 0, 0, 0, 0, 0, 0,
-      STARTF_USESHOWWINDOW, SW_SHOWMINIMIZED, 0,
-      NULL, NULL, NULL, NULL};
-
-    static PROCESS_INFORMATION pInfo;
-
-    if (CreateProcess (NULL, (char*) STRC (shellCommand),
-      NULL, NULL, FALSE, HIGH_PRIORITY_CLASS | CREATE_NEW_CONSOLE, NULL, NULL,
-      &sInfo, &pInfo) != 0)
-    {
-      iReturnStatus = EXIT_SUCCESS;
-    }
-  }
-
-#else
-
   /* execute on UNIX */
   iReturnStatus = system (STRC (shellCommand));
 
-#endif
 
   /* check the return status */
   if (iReturnStatus != EXIT_SUCCESS)
@@ -11248,7 +11157,7 @@ SDWORD DSTGetConnectionCount (HDBC hdbc, char* pszTypes)
   /* validate args. */
   assert (hdbc != SQL_NULL_HDBC);
 
-  /* this procedure is not supported in TimesTen Grid */
+  /* this procedure is not supported in Grid */
   if (!DSTIsGrid (hdbc))
   {
     /* init. buffers */
@@ -11596,145 +11505,6 @@ BOOL DSTKillRandDBProcess (HDBC hdbc, const char* pszConnType,
   return bStatus;
 }
 
-/*
-* Function: DSTFindDaemonCoreFiles ()
-*
-* Description: This procedure attempts to find daemon process core files located
-* in the info/ directory of TimesTen installations. If at least one core file is
-* found then this procedure returns TRUE.
-* 
-* In:
-*
-* Out:
-*
-* In/Out:
-*
-* Global Properties:
-* TIMESTEN_HOME
-*
-*/
-BOOL DSTFindDaemonCoreFiles ()
-{
-#ifndef WIN32
-  BOOL bFoundCoreFile = FALSE;
-  DSTRING ttHomeDir, ttInfoDir, ttBaseDir, ttCoreDir, coreFile, mssg;
-  DIR *dir, *dirBase;
-  struct dirent *ent, *entBase;
-#endif
-
-  DST_LOG_REPORT_ME ("DSTFindDaemonCoreFiles");
-
-#ifdef WIN32
-  DST_LOG ("This procedure is not supported on Windows platforms.");
-  DST_LOG_UNREPORT_ME;
-  return FALSE;
-#else
-
-  if (!PROPIsDefined ("TIMESTEN_HOME"))
-  {
-    DST_LOG ("The TIMESTEN_HOME environment variable is not defined.");
-    DST_LOG_UNREPORT_ME;
-    return FALSE;
-  }
-
-
-  STRInit (&ttHomeDir, "");
-  STRInit (&ttInfoDir, "");
-  STRInit (&ttBaseDir, "");
-  STRInit (&ttCoreDir, "");
-  STRInit (&coreFile, "");
-  STRInit (&mssg, "");
-
-  PROPGetAsString ("TIMESTEN_HOME", &ttHomeDir);
-
-
-
-  /* search for core files in TimesTen installations that may be */
-  /* located in the same directory where this installation is located */
-  STRCopy (&ttBaseDir, ttHomeDir);
-  STRAppendCString (&ttBaseDir, "/../");
-
-  if ((dirBase = opendir (STRC (ttBaseDir))) != NULL)
-  {
-    /* find info directories */
-    while ((entBase = readdir (dirBase)) != NULL)
-    {
-      struct stat inode;
-
-      STRCopy (&ttInfoDir, ttBaseDir);
-      STRAppendCString (&ttInfoDir, entBase->d_name);
-
-      if (strcmp (entBase->d_name, ".") != 0 &&
-          strcmp (entBase->d_name, "..") != 0 &&
-          stat (STRC (ttInfoDir), &inode) == 0 &&
-          S_ISDIR (inode.st_mode))
-      {
-        /* candidate directory? */
-        STRAppendCString (&ttInfoDir, "/info/");
-        STRCopyCString (&mssg, "\nSearching %s ...");
-        STRInsertString (&mssg, ttInfoDir);
-
-        /* search the info directory of the TT home directory first */
-        if ((dir = opendir (STRC (ttInfoDir))) != NULL)
-        {
-          DST_LOG (STRC (mssg));
-
-          /* iterate through all the files and directories within directory */
-          while ((ent = readdir (dir)) != NULL)
-          {
-            STRCopyCString (&coreFile, ent->d_name);
-
-            if (STRBeginsWithCString (coreFile, "core"))
-            {
-              struct stat inode;
-
-              STRCopy (&ttCoreDir, ttInfoDir);
-              STRAppend (&ttCoreDir, coreFile);
-
-
-              /* is this a directory */
-              if (stat (STRC (ttCoreDir), &inode) == 0 &&
-                  S_ISDIR (inode.st_mode))
-              {
-                /* directory named core found */;
-                continue;
-              }
-
-
-              bFoundCoreFile = TRUE;
-              STRCopyCString (&mssg, "Core file found: %s%s");
-
-              STRInsertString (&mssg, ttInfoDir);
-              STRInsertString (&mssg, coreFile);
-
-              DST_LOG_ERROR (STRC (mssg));
-            }
-          }
-
-          closedir (dir);
-        }
-      }
-    }
-
-    closedir (dirBase);
-  }
-
-
-  if (!bFoundCoreFile)
-    DST_LOG ("No core files found.");
-
-
-  STRFree (&mssg);
-  STRFree (&coreFile);
-  STRFree (&ttCoreDir);
-  STRFree (&ttBaseDir);
-  STRFree (&ttInfoDir);
-  STRFree (&ttHomeDir);
-
-  DST_LOG_UNREPORT_ME;
-  return bFoundCoreFile;
-#endif
-}
 
 /*
 * Function: DSTIsCommonSHMKEY  ()
@@ -11930,9 +11700,6 @@ SQLRETURN DSTFailoverStatsCallback (HDBC hdbc,
   /* this is the only failover type supported */
   assert (iFOType == TT_FO_SESSION);
 
-#ifdef DST_INCLUDE_COREXEL
-  DSTSetLogThreadId ((sbThread) hdbc);
-#endif
   DST_LOG ("DSTFailoverStatsCallback ()...");
 
   STRInit (&mssg, "");
@@ -12145,13 +11912,8 @@ void* DSTMalloc (int iLineno, const char* pszSourceFile, size_t size)
   {
     fprintf (stderr, DST_MSSG_MALLOC_FAILURE);
 
-#ifdef TT64
     fprintf (stderr, "Bytes requested: %lu \nSource file: %s \nLine number: %d \n\n",
       size, pszSourceFile, iLineno);
-#else
-    fprintf (stderr, "Bytes requested: %u \nSource file: %s \nLine number: %d \n\n",
-      size, pszSourceFile, iLineno);
-#endif
 
     fflush (NULL);
   }
@@ -12262,173 +12024,6 @@ BOOL DSTUseSqlExecuteTxns ()
   return bUseSqlExecuteTxns;
 }
 
-
-
-
-#ifdef DST_INCLUDE_COREXEL
-
-/*
-* Function: DSTCreateThread ()
-*
-* Description: Creates a new thread and starts execution
-* at the specified function address.
-*
-* In: pStartFunc, pArgs
-*
-* Out: pThreadID
-*
-* In/Out:
-*
-*
-*/
-
-BOOL DSTCreateThread (DSTThreadStartFunc pStartFunc,
-                      void* pArgs, sbThread* pThreadID)
-{
-  BOOL bStatus = TRUE;
-  DSTRING mssg;
-  int iErrNo = 0;
-
-  DST_LOG_REPORT_ME ("DSTCreateThread");
-
-  STRInit (&mssg, "");
-
-
-  /* launch the thread */
-  iErrNo = sbThreadCreate (pStartFunc, 0, pArgs, pThreadID);
-
-  if (iErrNo != 0)
-  {
-    bStatus = FALSE;
-
-    STRCopyCString (&mssg, "Thread failed to start. Error code: %d");
-    STRInsertInt (&mssg, iErrNo);
-    DST_LOG_ERROR (STRC (mssg));
-  }
-  else
-  {
-    STRCopyCString (&mssg, "Thread ID %u started successfully.");
-    STRInsertUnsignedInt (&mssg, (UDWORD) *pThreadID);
-    DST_LOG (STRC (mssg));
-  }
-
-
-  STRFree (&mssg);
-
-  DST_LOG_UNREPORT_ME;
-  return bStatus;
-}
-
-
-
-
-/*
-* Function: DSTJoinThread ()
-*
-* Description: Joins to an existing thread specified by the
-* thread ID.
-*
-* In: threadID
-*
-* Out:
-*
-* In/Out:
-*
-*
-*/
-BOOL DSTJoinThread (sbThread threadID)
-{
-  BOOL bStatus = TRUE;
-  DSTRING mssg;
-  int iErrNo = 0;
-
-  DST_LOG_REPORT_ME ("DSTJoinThread");
-
-
-  STRInit (&mssg, "Joining thread ID %u ... ");
-  STRInsertUnsignedInt (&mssg, (UDWORD) threadID);
-  DST_LOG (STRC (mssg));
-
-
-  /* join the thread */
-  iErrNo = sbThreadJoin (threadID, NULL, NULL);
-
-
-  if (iErrNo != 0)
-  {
-    bStatus = FALSE;
-
-    STRCopyCString (&mssg, "Failed to join thread ID %u. Error code: %d");
-    STRInsertUnsignedInt (&mssg, (UDWORD) threadID);
-    STRInsertInt (&mssg, iErrNo);
-    DST_LOG_ERROR (STRC (mssg));
-  }
-  else
-  {
-    STRCopyCString (&mssg, "Thread ID %u joined successfully.");
-    STRInsertUnsignedInt (&mssg, (UDWORD) threadID);
-    DST_LOG (STRC (mssg));
-  }
-
-
-  STRFree (&mssg);
-
-  DST_LOG_UNREPORT_ME;
-  return bStatus;
-}
-
-#endif /* DST_INCLUDE_COREXEL */
-
-
-/*
-* Function: DSTLock/Unlock ()
-*
-* Description: Provides a mutually exclusive lock among threads
-* in a single process. The pointer to the CRITICAL_SECTION pointer 
-* variable must be initialized to NULL before its first use in order
-* to allocate the associated structure.
-*
-* In: 
-*
-* Out:
-*
-* In/Out: ppLock
-*
-*
-*/
-void DSTLock (CRITICAL_SECTION** ppLock)
-{
-
-  /* allocate the critical section structure */
-  if (*ppLock == NULL)
-  {
-    *ppLock = (CRITICAL_SECTION*) DST_MALLOC (sizeof (CRITICAL_SECTION));
-
-    if (*ppLock == NULL)
-      return;
-
-    /* initialize */
-#ifdef DST_INCLUDE_COREXEL
-    sbInitializeCriticalSection (*ppLock);
-#endif
-  }
-
-  /* acquire the lock */
-#ifdef DST_INCLUDE_COREXEL
-  sbEnterCriticalSection (*ppLock);
-#endif
-
-}
-
-void DSTUnlock (CRITICAL_SECTION* pLock)
-{
-
-  /* release the lock */
-#ifdef DST_INCLUDE_COREXEL
-  sbLeaveCriticalSection (pLock);
-#endif
-
-}
 
 
 
